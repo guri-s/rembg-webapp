@@ -1,79 +1,238 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>✂️ rmbg</title>
+    <title>✂️ BackgroundEraser: AI Image Editor</title>
     <style>
       body {
         height: 100vh;
+        margin: 0;
         display: flex;
-
         align-items: center;
         justify-content: center;
-        text-align: center;
+        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
       }
 
       .drop-zone {
-        border: 2px dashed #ccc;
-        padding: 20px;
+        background: rgba(255, 255, 255, 0.95);
+        border: 2px dashed #2196F3;
+        border-radius: 24px;
+        padding: 48px;
         width: 80vw;
-        height: 80vh;
+        max-width: 600px;
+        min-height: 400px;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
       }
 
       .drop-zone.dragover {
-        background-color: #f0f0f0;
+        background: rgba(255, 255, 255, 1);
+        border-color: #1976D2;
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+      }
+
+      .icon {
+        font-size: 56px;
+        margin-bottom: 24px;
+        background: linear-gradient(45deg, #2196F3, #1976D2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 2px 2px 8px rgba(33, 150, 243, 0.2);
+      }
+
+      h1 {
+        color: #1976D2;
+        margin: 0 0 32px 0;
+        font-size: 2.5em;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 16px;
+        margin: 24px 0;
+      }
+
+      .upload-button {
+        background: #2196F3;
+        color: white;
+        padding: 12px 28px;
+        border: none;
+        border-radius: 50px;
+        font-size: 1.1em;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+      }
+
+      .upload-button:hover {
+        background: #1976D2;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(33, 150, 243, 0.4);
+      }
+
+      .upload-button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .file-name {
+        color: #666;
+        margin: 12px 0;
+        font-size: 0.95em;
+      }
+
+      .instructions {
+        color: #666;
+        margin: 24px 0 0 0;
+        font-size: 1.1em;
+      }
+
+      .loading {
+        margin-top: 24px;
+        color: #2196F3;
+        font-weight: 600;
+        animation: pulse 1.5s infinite;
+      }
+
+      @keyframes pulse {
+        0% { opacity: 0.6; }
+        50% { opacity: 1; }
+        100% { opacity: 0.6; }
+      }
+
+      #fileInput {
+        display: none;
       }
     </style>
   </head>
   <body>
     <div id="dropZone" class="drop-zone">
-      <h1>rmbg</h1>
+      <div class="icon">✂️</div>
+      <h1>BackgroundEraser: AI Image Editor</h1>
       <form
         id="uploadForm"
         action="/"
         method="post"
         enctype="multipart/form-data"
       >
-        <input id="fileInput" type="file" name="file" />
-        <input type="submit" value="rm" />
+        <input id="fileInput" type="file" name="file" accept="image/*" />
+        <div class="button-group">
+          <button type="button" class="upload-button" id="chooseFileBtn">Choose File</button>
+          <input type="submit" value="Process Image" class="upload-button" id="submitBtn" disabled />
+        </div>
+        <p id="fileName" class="file-name"></p>
       </form>
+      <p class="instructions">Drag and drop your image here</p>
+      <div id="loading" class="loading" style="display: none;">
+        Processing your image...
+      </div>
     </div>
 
     <script>
       let dropZone = document.getElementById("dropZone");
       let fileInput = document.getElementById("fileInput");
       let uploadForm = document.getElementById("uploadForm");
+      let chooseFileBtn = document.getElementById("chooseFileBtn");
+      let submitBtn = document.getElementById("submitBtn");
+      let fileName = document.getElementById("fileName");
+      let loading = document.getElementById("loading");
 
-      dropZone.addEventListener("click", function () {
+      // Choose File button handler
+      chooseFileBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
         fileInput.click();
       });
 
-      fileInput.addEventListener("change", function () {
-        if (fileInput.files.length > 0) {
-          uploadForm.submit();
-        }
+      // File input change handler
+      fileInput.addEventListener("change", function() {
+        handleFiles(this.files);
       });
 
-      dropZone.addEventListener("dragover", function (e) {
-        this.classList.add("dragover");
+      // Prevent default drag behaviors
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
       });
 
-      dropZone.addEventListener("dragleave", function (e) {
-        this.classList.remove("dragover");
-      });
-
-      dropZone.addEventListener("drop", function (e) {
+      function preventDefaults (e) {
         e.preventDefault();
         e.stopPropagation();
-        this.classList.remove("dragover");
+      }
 
-        let file = e.dataTransfer.files[0];
-        fileInput.files = e.dataTransfer.files;
-        uploadForm.submit();
+      // Highlight drop zone when item is dragged over it
+      dropZone.addEventListener('dragover', function() {
+        dropZone.classList.add('dragover');
+      });
+
+      dropZone.addEventListener('dragleave', function() {
+        dropZone.classList.remove('dragover');
+      });
+
+      // Handle dropped files
+      dropZone.addEventListener('drop', function(e) {
+        dropZone.classList.remove('dragover');
+        const dt = e.dataTransfer;
+        handleFiles(dt.files);
+      });
+
+      function handleFiles(files) {
+        if (files.length > 0) {
+          const file = files[0];
+          
+          // Validate file type
+          if (!file.type.startsWith('image/')) {
+            alert('Please upload an image file');
+            return;
+          }
+
+          fileInput.files = files;
+          fileName.textContent = file.name;
+          submitBtn.disabled = false;
+        }
+      }
+
+      // Form submission handler
+      uploadForm.addEventListener('submit', function(e) {
+        e.preventDefault(); // Prevent default form submission
+        loading.style.display = 'block';
+        submitBtn.disabled = true;
+        chooseFileBtn.disabled = true;
+
+        // Use fetch to submit form
+        fetch('/', {
+          method: 'POST',
+          body: new FormData(uploadForm)
+        })
+        .then(response => {
+          if (response.ok) {
+            return response.blob(); // Get the image blob
+          } else {
+            throw new Error('Error processing image');
+          }
+        })
+        .then(imageBlob => {
+          const imageUrl = URL.createObjectURL(imageBlob);
+          // You can display the processed image or handle it as needed
+          const imgElement = document.createElement('img');
+          imgElement.src = imageUrl;
+          document.body.appendChild(imgElement); // Append the image to the body
+          loading.style.display = 'none'; // Hide loading
+        })
+        .catch(error => {
+          alert('Error: ' + error);
+          loading.style.display = 'none';
+          submitBtn.disabled = false;
+          chooseFileBtn.disabled = false;
+        });
       });
     </script>
   </body>
