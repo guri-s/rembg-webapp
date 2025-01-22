@@ -202,9 +202,37 @@
 
       // Form submission handler
       uploadForm.addEventListener('submit', function(e) {
+        e.preventDefault(); // Prevent default form submission
         loading.style.display = 'block';
         submitBtn.disabled = true;
         chooseFileBtn.disabled = true;
+
+        // Use fetch to submit form
+        fetch('/', {
+          method: 'POST',
+          body: new FormData(uploadForm)
+        })
+        .then(response => {
+          if (response.ok) {
+            return response.blob(); // Get the image blob
+          } else {
+            throw new Error('Error processing image');
+          }
+        })
+        .then(imageBlob => {
+          const imageUrl = URL.createObjectURL(imageBlob);
+          // You can display the processed image or handle it as needed
+          const imgElement = document.createElement('img');
+          imgElement.src = imageUrl;
+          document.body.appendChild(imgElement); // Append the image to the body
+          loading.style.display = 'none'; // Hide loading
+        })
+        .catch(error => {
+          alert('Error: ' + error);
+          loading.style.display = 'none';
+          submitBtn.disabled = false;
+          chooseFileBtn.disabled = false;
+        });
       });
     </script>
   </body>
